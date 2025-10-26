@@ -1,12 +1,29 @@
 use freedesktop_desktop_entry::{desktop_entries, get_languages_from_env};
 use freedesktop_icons::lookup;
 use quick_xml::escape::escape;
+use std::fmt;
 use std::{collections::HashMap, path::PathBuf};
+use itertools::Itertools;
 
 struct Entry {
     label: String,
     exec: String,
-    icon: Option<String>,
+    icon: Option<PathBuf>,
+}
+
+impl fmt::Display for Entry {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let icon_str = if let Some(icon_path) = &self.icon {
+            format!(" icon=\"{}\"", icon_path.display())
+        } else {
+            "".to_string()
+        };
+        write!(
+            f,
+            "<item label=\"{}\"{}><action name=\"Execute\"><command>{}</command></action></item>",
+            self.label, icon_str, self.exec,
+        )
+    }
 }
 
 fn default_categories() -> Vec<String> {
@@ -37,26 +54,6 @@ fn empty_hash() -> HashMap<String, Vec<Entry>> {
     hm
 }
 
-fn print_without_icon(e: &Entry) {
-    println!(
-        "<item label=\"{0}\"><action name=\"Execute\"><command>{1}</command></action></item>",
-        escape(e.label.as_str()),
-        e.exec
-    )
-}
-
-fn print_with_icon(e: &Entry, icon: Option<PathBuf>) {
-    match icon {
-        None => print_without_icon(e),
-        Some(path) => println!(
-            "<item label=\"{0}\" icon=\"{2}\"><action name=\"Execute\"><command>{1}</command></action></item>",
-            escape(e.label.as_str()),
-            e.exec,
-            path.display()
-        ),
-    }
-}
-
 fn main() {
     let locales = get_languages_from_env();
     let entries = desktop_entries(&locales);
@@ -66,9 +63,13 @@ fn main() {
         for c in entry.categories().unwrap() {
             if let Some(v) = menu_entries.get_mut(c) {
                 v.push(Entry {
-                    label: entry.full_name(&locales).unwrap_or_default().to_string(),
+                    label: escape(entry.full_name(&locales).unwrap_or_default()).to_string(),
                     exec: entry.exec().unwrap_or_default().to_string(),
-                    icon: entry.icon().map(str::to_string),
+                    icon: if let Some(ei) = entry.icon() {
+                        lookup(ei).with_cache().find()
+                    } else {
+                        None
+                    },
                 });
             }
         }
@@ -79,17 +80,14 @@ fn main() {
         "<openbox_menu xmlns=\"http://openbox.org/\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:schemaLocation=\"http://openbox.org/\" >"
     );
 
-    for category in default_categories() {
-        let entries_in_cat = menu_entries.get(&category).unwrap();
+    for category in menu_entries.keys().sorted() {
+        let entries_in_cat = menu_entries.get(category).unwrap();
         if entries_in_cat.is_empty() {
             continue;
         }
         println!("<menu id=\"boxmenu-{category}\" label=\"{category}\" >");
         for e in entries_in_cat {
-            match &e.icon {
-                None => print_without_icon(e),
-                Some(icon) => print_with_icon(e, lookup(icon).with_cache().find()),
-            }
+            println!("{}", e);
         }
         println!("</menu>");
     }
