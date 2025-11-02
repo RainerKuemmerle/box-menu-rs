@@ -4,6 +4,7 @@ use itertools::Itertools;
 use lazy_static::lazy_static;
 use quick_xml::escape::escape;
 use std::fmt;
+use std::sync::OnceLock;
 use std::{collections::HashMap, collections::HashSet, path::PathBuf};
 
 #[derive(Eq, Hash, PartialEq, PartialOrd, Ord)]
@@ -26,6 +27,24 @@ impl fmt::Display for Entry {
             self.label, icon_str, self.exec,
         )
     }
+}
+
+fn theme() -> &'static String {
+    static VALUE: OnceLock<String> = OnceLock::new();
+    VALUE.get_or_init(|| {
+        if let Some(theme) = default_theme_gtk() {
+            theme
+        } else {
+            "hicolor".to_string()
+        }
+    })
+}
+
+fn lookup_icon(name: &str) -> Option<PathBuf> {
+    lookup(name)
+        .with_theme(theme().as_str())
+        .with_cache()
+        .find()
 }
 
 lazy_static! {
@@ -59,11 +78,6 @@ fn empty_hash() -> HashMap<String, HashSet<Entry>> {
 fn main() {
     let locales = get_languages_from_env();
     let entries = desktop_entries(&locales);
-    let icon_theme = if let Some(theme) = default_theme_gtk() {
-        theme
-    } else {
-        "hicolor".to_string()
-    };
 
     let mut menu_entries = empty_hash();
     for entry in entries.iter().filter(|x| x.categories().is_some()) {
@@ -79,10 +93,7 @@ fn main() {
                     label: escape(entry.full_name(&locales).unwrap_or_default()).to_string(),
                     exec: entry.exec().unwrap_or_default().to_string(),
                     icon: if let Some(ei) = entry.icon() {
-                        lookup(ei)
-                            .with_theme(icon_theme.as_str())
-                            .with_cache()
-                            .find()
+                        lookup_icon(ei)
                     } else {
                         None
                     },
@@ -101,11 +112,7 @@ fn main() {
             continue;
         }
         let catergory_icon_name = format!("applications-{}", category.to_lowercase());
-        let icon_str = if let Some(icon_path) = lookup(&catergory_icon_name)
-            .with_theme(icon_theme.as_str())
-            .with_cache()
-            .find()
-        {
+        let icon_str = if let Some(icon_path) = lookup_icon(&catergory_icon_name) {
             format!(" icon=\"{}\"", icon_path.display())
         } else {
             "".to_string()
