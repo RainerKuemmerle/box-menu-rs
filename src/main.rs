@@ -111,8 +111,8 @@ fn main() {
         if entries_in_cat.is_empty() {
             continue;
         }
-        let catergory_icon_name = format!("applications-{}", category.to_lowercase());
-        let icon_str = if let Some(icon_path) = lookup_icon(&catergory_icon_name) {
+        let category_icon_name = format!("applications-{}", category.to_lowercase());
+        let icon_str = if let Some(icon_path) = lookup_icon(&category_icon_name) {
             format!(" icon=\"{}\"", icon_path.display())
         } else {
             "".to_string()
