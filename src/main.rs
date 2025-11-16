@@ -60,16 +60,33 @@ impl ConfigCategory {
 }
 
 #[derive(Serialize, Deserialize)]
+struct OutputCategory {
+    icon: Option<String>,
+}
+
+#[derive(Serialize, Deserialize)]
 struct Config {
     category_map: HashMap<String, ConfigCategory>,
+    output: Option<HashMap<String, OutputCategory>>,
 }
 impl Config {
     pub fn empty_hash(&self) -> HashMap<String, HashSet<Entry>> {
         let mut hm = HashMap::new();
         for c in self.category_map.values().into_iter() {
-            hm.insert(c.output_name.clone(), HashSet::new());
+            hm.insert(c.output.clone(), HashSet::new());
         }
         hm
+    }
+
+    pub fn icon_for_category(&self, category: &String) -> String {
+        if let Some(output) = &self.output
+            && let Some(output_category) = output.get(category)
+            && let Some(icon) = &output_category.icon
+        {
+            return icon.clone()
+        }
+        let icon = format!("applications-{}", category.to_lowercase());
+        icon
     }
 }
 
@@ -104,7 +121,10 @@ impl ::std::default::Default for Config {
         );
         m.insert("System".into(), ConfigCategory::default("System".into()));
         m.insert("Utility".into(), ConfigCategory::default("Utility".into()));
-        Self { category_map: m }
+        Self {
+            category_map: m,
+            output: None,
+        }
     }
 }
 
@@ -146,7 +166,7 @@ fn main() -> Result<(), confy::ConfyError> {
         if entries_in_cat.is_empty() {
             continue;
         }
-        let category_icon_name = format!("applications-{}", category.to_lowercase());
+        let category_icon_name = cfg.icon_for_category(category);
         let icon_str = if let Some(icon_path) = lookup_icon(&category_icon_name) {
             format!(" icon=\"{}\"", icon_path.display())
         } else {
