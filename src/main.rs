@@ -1,8 +1,8 @@
 use freedesktop_desktop_entry::{desktop_entries, get_languages_from_env};
 use freedesktop_icons::{default_theme_gtk, lookup};
 use itertools::Itertools;
-use lazy_static::lazy_static;
 use quick_xml::escape::escape;
+use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::sync::OnceLock;
 use std::{collections::HashMap, collections::HashSet, path::PathBuf};
@@ -19,7 +19,7 @@ impl fmt::Display for Entry {
         let icon_str = if let Some(icon_path) = &self.icon {
             format!(" icon=\"{}\"", icon_path.display())
         } else {
-            "".to_string()
+            "".into()
         };
         write!(
             f,
@@ -35,7 +35,7 @@ fn theme() -> &'static String {
         if let Some(theme) = default_theme_gtk() {
             theme
         } else {
-            "hicolor".to_string()
+            "hicolor".into()
         }
     })
 }
@@ -47,48 +47,83 @@ fn lookup_icon(name: &str) -> Option<PathBuf> {
         .find()
 }
 
-lazy_static! {
-    static ref CATEGORIES_MAP: HashMap<String, String> = {
-        let mut m = HashMap::new();
-        m.insert("AudioVideo".to_string(), "Multimedia".to_string());
-        m.insert("Audio".to_string(), "Multimedia".to_string());
-        m.insert("Video".to_string(), "Multimedia".to_string());
-        m.insert("Development".to_string(), "Development".to_string());
-        m.insert("Education".to_string(), "Education".to_string());
-        m.insert("Game".to_string(), "Games".to_string());
-        m.insert("Graphics".to_string(), "Graphics".to_string());
-        m.insert("Network".to_string(), "Internet".to_string());
-        m.insert("Office".to_string(), "Office".to_string());
-        m.insert("Science".to_string(), "Science".to_string());
-        m.insert("Settings".to_string(), "Settings".to_string());
-        m.insert("System".to_string(), "System".to_string());
-        m.insert("Utility".to_string(), "Utility".to_string());
-        m
-    };
+#[derive(Serialize, Deserialize)]
+struct ConfigCategory {
+    output: String,
 }
-
-fn empty_hash() -> HashMap<String, HashSet<Entry>> {
-    let mut hm = HashMap::new();
-    for c in CATEGORIES_MAP.values().into_iter() {
-        hm.insert(c.to_string(), HashSet::new());
+impl ConfigCategory {
+    pub fn default(output_name: String) -> Self {
+        Self {
+            output: output_name,
+        }
     }
-    hm
 }
 
-fn main() {
+#[derive(Serialize, Deserialize)]
+struct Config {
+    category_map: HashMap<String, ConfigCategory>,
+}
+impl Config {
+    pub fn empty_hash(&self) -> HashMap<String, HashSet<Entry>> {
+        let mut hm = HashMap::new();
+        for c in self.category_map.values().into_iter() {
+            hm.insert(c.output_name.clone(), HashSet::new());
+        }
+        hm
+    }
+}
+
+impl ::std::default::Default for Config {
+    fn default() -> Self {
+        let mut m = HashMap::new();
+        m.insert(
+            "AudioVideo".into(),
+            ConfigCategory::default("Multimedia".into()),
+        );
+        m.insert("Audio".into(), ConfigCategory::default("Multimedia".into()));
+        m.insert("Video".into(), ConfigCategory::default("Multimedia".into()));
+        m.insert(
+            "Development".into(),
+            ConfigCategory::default("Development".into()),
+        );
+        m.insert(
+            "Education".into(),
+            ConfigCategory::default("Education".into()),
+        );
+        m.insert("Game".into(), ConfigCategory::default("Games".into()));
+        m.insert(
+            "Graphics".into(),
+            ConfigCategory::default("Graphics".into()),
+        );
+        m.insert("Network".into(), ConfigCategory::default("Internet".into()));
+        m.insert("Office".into(), ConfigCategory::default("Office".into()));
+        m.insert("Science".into(), ConfigCategory::default("Science".into()));
+        m.insert(
+            "Settings".into(),
+            ConfigCategory::default("Settings".into()),
+        );
+        m.insert("System".into(), ConfigCategory::default("System".into()));
+        m.insert("Utility".into(), ConfigCategory::default("Utility".into()));
+        Self { category_map: m }
+    }
+}
+
+fn main() -> Result<(), confy::ConfyError> {
+    let cfg: Config = confy::load("box-menu-rs", "config")?;
+
     let locales = get_languages_from_env();
     let entries = desktop_entries(&locales);
 
-    let mut menu_entries = empty_hash();
+    let mut menu_entries = cfg.empty_hash();
     for entry in entries.iter().filter(|x| x.categories().is_some()) {
         for c in entry
             .categories()
             .unwrap()
             .into_iter()
-            .filter(|&k| CATEGORIES_MAP.contains_key(k))
+            .filter(|&k| cfg.category_map.contains_key(k))
         {
-            let mapped_category = CATEGORIES_MAP.get(c).unwrap();
-            if let Some(v) = menu_entries.get_mut(mapped_category) {
+            let mapped_category = cfg.category_map.get(c).unwrap();
+            if let Some(v) = menu_entries.get_mut(&mapped_category.output) {
                 v.insert(Entry {
                     label: escape(entry.full_name(&locales).unwrap_or_default()).to_string(),
                     exec: entry.exec().unwrap_or_default().to_string(),
@@ -124,4 +159,5 @@ fn main() {
         println!("</menu>");
     }
     println!("</openbox_menu>");
+    Ok(())
 }
