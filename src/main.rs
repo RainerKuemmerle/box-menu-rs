@@ -1,11 +1,12 @@
 use freedesktop_desktop_entry::{desktop_entries, get_languages_from_env};
 use freedesktop_icons::{default_theme_gtk, lookup};
 use itertools::Itertools;
-use quick_xml::escape::escape;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::sync::OnceLock;
 use std::{collections::HashMap, collections::HashSet, path::PathBuf};
+
+mod escape;
 
 #[derive(Eq, Hash, PartialEq, PartialOrd, Ord)]
 struct Entry {
@@ -83,7 +84,7 @@ impl Config {
             && let Some(output_category) = output.get(category)
             && let Some(icon) = &output_category.icon
         {
-            return icon.clone()
+            return icon.clone();
         }
         let icon = format!("applications-{}", category.to_lowercase());
         icon
@@ -145,7 +146,8 @@ fn main() -> Result<(), confy::ConfyError> {
             let mapped_category = cfg.category_map.get(c).unwrap();
             if let Some(v) = menu_entries.get_mut(&mapped_category.output) {
                 v.insert(Entry {
-                    label: escape(entry.full_name(&locales).unwrap_or_default()).to_string(),
+                    label: escape::escape(entry.full_name(&locales).unwrap_or_default())
+                        .to_string(),
                     exec: entry.exec().unwrap_or_default().to_string(),
                     icon: if let Some(ei) = entry.icon() {
                         lookup_icon(ei)
