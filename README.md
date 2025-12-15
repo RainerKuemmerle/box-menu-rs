@@ -23,7 +23,37 @@ cargo install --path .
 
 ## Configuration & Usage
 
-After this you can integrate into your `menu.xml`, e.g., `$HOME/.config/labwc/menu.xml`.
+After this you can integrate into your `menu.xml` to generate a sub menu for the
+found applications, e.g., `$HOME/.config/labwc/menu.xml`.
+
+```
+...
+  <menu id="applications-boxmenu" label="Apps" execute="box-menu-rs" icon="/usr/share/icons/Humanity/categories/24/applications-other.svg"/>
+...
+```
+
+In addition, box-menu-rs can be configured via `$XDG_CONFIG_HOME/box-menu-rs/config.yml`.
+
+Definition of which categories of desktop files to include into which output menu.
+```
+category_map:
+  Graphics:
+    output: Graphics
+  ...
+```
+
+Specify how to output, e.g., adding an icon in case the default one is not found.
+```
+output:
+  Settings:
+    icon: org.xfce.settings.manager
+  ...
+```
+
+Furthermore, launching `box-menu-rs` without a configuration will store the
+default one.
+
+### Screenshot Configuration
 
 Below the `menu.xml` corresponding to the screenshot.
 
