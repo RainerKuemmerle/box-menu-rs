@@ -50,12 +50,12 @@ fn lookup_icon(name: &str) -> Option<PathBuf> {
 
 #[derive(Serialize, Deserialize)]
 struct ConfigCategory {
-    output: String,
+    output: Option<String>,
 }
 impl ConfigCategory {
     pub fn default(output_name: String) -> Self {
         Self {
-            output: output_name,
+            output: Some(output_name),
         }
     }
 }
@@ -73,8 +73,9 @@ struct Config {
 impl Config {
     pub fn empty_hash(&self) -> HashMap<String, HashSet<Entry>> {
         let mut hm = HashMap::new();
-        for c in self.category_map.values().into_iter() {
-            hm.insert(c.output.clone(), HashSet::new());
+        for (k, c) in self.category_map.iter() {
+            let output_name = c.output.as_ref().unwrap_or(k);
+            hm.insert(output_name.clone(), HashSet::new());
         }
         hm
     }
@@ -144,16 +145,13 @@ fn main() -> Result<(), confy::ConfyError> {
             .filter(|&k| cfg.category_map.contains_key(k))
         {
             let mapped_category = cfg.category_map.get(c).unwrap();
-            if let Some(v) = menu_entries.get_mut(&mapped_category.output) {
+            let output_name = mapped_category.output.as_ref().map_or(c, |v| &v);
+            if let Some(v) = menu_entries.get_mut(output_name) {
                 v.insert(Entry {
                     label: escape::escape(entry.full_name(&locales).unwrap_or_default())
                         .to_string(),
                     exec: entry.exec().unwrap_or_default().to_string(),
-                    icon: if let Some(ei) = entry.icon() {
-                        lookup_icon(ei)
-                    } else {
-                        None
-                    },
+                    icon: entry.icon().map_or(None, |ei| lookup_icon(ei)),
                 });
             }
         }
