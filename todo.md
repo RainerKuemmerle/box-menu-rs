@@ -1,4 +1,4 @@
-[ ] Support category_map without renaming
+[x] Support category_map without renaming
     category_map:
-    Graphics:
-    output:
+      Graphics:
+      output:
