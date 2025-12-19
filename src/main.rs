@@ -1,4 +1,4 @@
-use freedesktop_desktop_entry::{desktop_entries, get_languages_from_env};
+use freedesktop_desktop_entry::{DesktopEntry, desktop_entries, get_languages_from_env};
 use freedesktop_icons::{default_theme_gtk, lookup};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
@@ -134,10 +134,13 @@ fn main() -> Result<(), confy::ConfyError> {
     let cfg: Config = confy::load("box-menu-rs", "config")?;
 
     let locales = get_languages_from_env();
-    let entries = desktop_entries(&locales);
+    let entries: Vec<DesktopEntry> = desktop_entries(&locales)
+        .into_iter()
+        .filter(|x| x.categories().is_some())
+        .collect();
 
     let mut menu_entries = cfg.empty_hash();
-    for entry in entries.iter().filter(|x| x.categories().is_some()) {
+    for entry in entries {
         for c in entry
             .categories()
             .unwrap()
@@ -161,11 +164,7 @@ fn main() -> Result<(), confy::ConfyError> {
     println!(
         "<openbox_menu xmlns=\"http://openbox.org/\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:schemaLocation=\"http://openbox.org/\" >"
     );
-    for category in menu_entries.keys().sorted() {
-        let entries_in_cat = menu_entries.get(category).unwrap();
-        if entries_in_cat.is_empty() {
-            continue;
-        }
+    for (category, entries_in_cat) in menu_entries.iter().sorted_by_key(|x| x.0) {
         let category_icon_name = cfg.icon_for_category(category);
         let icon_str = if let Some(icon_path) = lookup_icon(&category_icon_name) {
             format!(" icon=\"{}\"", icon_path.display())
