@@ -110,3 +110,4 @@ The functionality of `box-menu-rs` is similar to:
 
 * [labwc-menu-generator](https://github.com/labwc/labwc-menu-generator)
 * [Openbox Pipemenu written in Python3](https://github.com/onuronsekiz/obamenu)
+* or other alternatives in [labwc's integration guide](https://labwc.github.io/integration.html#menu-generators)
