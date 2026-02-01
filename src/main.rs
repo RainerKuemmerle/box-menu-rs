@@ -6,6 +6,10 @@ use std::fmt;
 use std::sync::OnceLock;
 use std::{collections::HashMap, collections::HashSet, path::PathBuf};
 
+const CATEGORY_ICON_PREFIX: &str = "applications-";
+const OPENBOX_XMLNS: &str = "http://openbox.org/";
+const OPENBOX_XSI: &str = "http://www.w3.org/2001/XMLSchema-instance";
+
 mod escape;
 
 #[derive(Eq, Hash, PartialEq, PartialOrd, Ord)]
@@ -17,15 +21,15 @@ struct Entry {
 
 impl fmt::Display for Entry {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let icon_str = if let Some(icon_path) = &self.icon {
-            format!(" icon=\"{}\"", icon_path.display())
-        } else {
-            "".into()
-        };
+        let icon_attr = self
+            .icon
+            .as_ref()
+            .map(|p| format!(" icon=\"{}\"", p.display()))
+            .unwrap_or_default();
         write!(
             f,
             "<item label=\"{}\"{}><action name=\"Execute\"><command>{}</command></action></item>",
-            self.label, icon_str, self.exec,
+            self.label, icon_attr, self.exec,
         )
     }
 }
@@ -72,23 +76,19 @@ struct Config {
 }
 impl Config {
     pub fn empty_hash(&self) -> HashMap<String, HashSet<Entry>> {
-        let mut hm = HashMap::new();
-        for (k, c) in self.category_map.iter() {
-            let output_name = c.output.as_ref().unwrap_or(k);
-            hm.insert(output_name.clone(), HashSet::new());
-        }
-        hm
+        self.category_map
+            .iter()
+            .map(|(k, c)| (c.output.as_ref().unwrap_or(k).clone(), HashSet::new()))
+            .collect()
     }
 
-    pub fn icon_for_category(&self, category: &String) -> String {
-        if let Some(output) = &self.output
-            && let Some(output_category) = output.get(category)
-            && let Some(icon) = &output_category.icon
-        {
-            return icon.clone();
-        }
-        let icon = format!("applications-{}", category.to_lowercase());
-        icon
+    pub fn icon_for_category(&self, category: &str) -> String {
+        self.output
+            .as_ref()
+            .and_then(|output| output.get(category))
+            .and_then(|oc| oc.icon.as_ref())
+            .cloned()
+            .unwrap_or_else(|| format!("{}{}", CATEGORY_ICON_PREFIX, category.to_lowercase()))
     }
 }
 
@@ -148,13 +148,13 @@ fn main() -> Result<(), confy::ConfyError> {
             .filter(|&k| cfg.category_map.contains_key(k))
         {
             let mapped_category = cfg.category_map.get(c).unwrap();
-            let output_name = mapped_category.output.as_ref().map_or(c, |v| &v);
+            let output_name = mapped_category.output.as_ref().map_or(c, |v| v);
             if let Some(v) = menu_entries.get_mut(output_name) {
                 v.insert(Entry {
                     label: escape::escape(entry.full_name(&locales).unwrap_or_default())
                         .to_string(),
                     exec: entry.exec().unwrap_or_default().to_string(),
-                    icon: entry.icon().map_or(None, |ei| lookup_icon(ei)),
+                    icon: entry.icon().and_then(lookup_icon),
                 });
             }
         }
@@ -162,15 +162,14 @@ fn main() -> Result<(), confy::ConfyError> {
 
     println!("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
     println!(
-        "<openbox_menu xmlns=\"http://openbox.org/\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:schemaLocation=\"http://openbox.org/\" >"
+        "<openbox_menu xmlns=\"{}\" xmlns:xsi=\"{}\" xsi:schemaLocation=\"{}\" >",
+        OPENBOX_XMLNS, OPENBOX_XSI, OPENBOX_XMLNS
     );
     for (category, entries_in_cat) in menu_entries.iter().sorted_by_key(|x| x.0) {
         let category_icon_name = cfg.icon_for_category(category);
-        let icon_str = if let Some(icon_path) = lookup_icon(&category_icon_name) {
-            format!(" icon=\"{}\"", icon_path.display())
-        } else {
-            "".to_string()
-        };
+        let icon_str = lookup_icon(&category_icon_name)
+            .map(|p| format!(" icon=\"{}\"", p.display()))
+            .unwrap_or_default();
         println!("<menu id=\"boxmenu-{category}\" label=\"{category}\" {icon_str}>");
         for e in entries_in_cat.iter().sorted() {
             println!("{e}");
