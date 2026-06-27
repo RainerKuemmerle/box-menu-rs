@@ -4,7 +4,7 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::sync::OnceLock;
-use std::{collections::HashMap, collections::HashSet, path::PathBuf};
+use std::{collections::{BTreeMap, HashMap, HashSet}, path::PathBuf};
 
 const CATEGORY_ICON_PREFIX: &str = "applications-";
 const OPENBOX_XMLNS: &str = "http://openbox.org/";
@@ -31,6 +31,73 @@ impl fmt::Display for Entry {
             "<item label=\"{}\"{}><action name=\"Execute\"><command>{}</command></action></item>",
             self.label, icon_attr, self.exec,
         )
+    }
+}
+
+#[derive(Default)]
+struct MenuNode {
+    label: String,
+    children: BTreeMap<String, MenuNode>,
+    entries: HashSet<Entry>,
+}
+
+impl MenuNode {
+    fn new(label: String) -> Self {
+        Self {
+            label,
+            children: BTreeMap::new(),
+            entries: HashSet::new(),
+        }
+    }
+
+    fn node_for_path(&mut self, path: &str) -> &mut MenuNode {
+        let mut current = self;
+        for segment in path.split('/').filter(|segment| !segment.is_empty()) {
+            current = current.children.entry(segment.to_string()).or_insert_with(|| {
+                MenuNode::new(segment.to_string())
+            });
+        }
+        current
+    }
+
+    fn insert(&mut self, path: &str, entry: Entry) {
+        self.node_for_path(path).entries.insert(entry);
+    }
+
+    fn print(&self, config: &Config, path: &str) {
+        if !self.label.is_empty() {
+            let category_icon_name = config.icon_for_category(path);
+            let icon_str = lookup_icon(&category_icon_name)
+                .map(|p| format!(" icon=\"{}\"", p.display()))
+                .unwrap_or_default();
+            println!(
+                "<menu id=\"boxmenu-{}\" label=\"{}\"{}>",
+                Self::menu_id(path),
+                escape::escape(&self.label),
+                icon_str
+            );
+        }
+
+        for (child_name, child) in &self.children {
+            let child_path = if path.is_empty() {
+                child_name.clone()
+            } else {
+                format!("{}/{}", path, child_name)
+            };
+            child.print(config, &child_path);
+        }
+
+        for entry in self.entries.iter().sorted() {
+            println!("{}", entry);
+        }
+
+        if !self.label.is_empty() {
+            println!("</menu>");
+        }
+    }
+
+    fn menu_id(path: &str) -> String {
+        path.replace('/', "-").replace(' ', "-")
     }
 }
 
@@ -75,11 +142,13 @@ struct Config {
     output: Option<HashMap<String, OutputCategory>>,
 }
 impl Config {
-    pub fn empty_hash(&self) -> HashMap<String, HashSet<Entry>> {
-        self.category_map
-            .iter()
-            .map(|(k, c)| (c.output.as_ref().unwrap_or(k).clone(), HashSet::new()))
-            .collect()
+    pub fn empty_tree(&self) -> MenuNode {
+        let mut root = MenuNode::new(String::new());
+        for (category, config_category) in self.category_map.iter() {
+            let output_name = config_category.output.as_ref().unwrap_or(category);
+            root.node_for_path(output_name);
+        }
+        root
     }
 
     pub fn icon_for_category(&self, category: &str) -> String {
@@ -139,7 +208,7 @@ fn main() -> Result<(), confy::ConfyError> {
         .filter(|x| x.categories().is_some())
         .collect();
 
-    let mut menu_entries = cfg.empty_hash();
+    let mut root = cfg.empty_tree();
     for entry in entries {
         for c in entry
             .categories()
@@ -149,14 +218,15 @@ fn main() -> Result<(), confy::ConfyError> {
         {
             let mapped_category = cfg.category_map.get(c).unwrap();
             let output_name = mapped_category.output.as_ref().map_or(c, |v| v);
-            if let Some(v) = menu_entries.get_mut(output_name) {
-                v.insert(Entry {
+            root.insert(
+                output_name,
+                Entry {
                     label: escape::escape(entry.full_name(&locales).unwrap_or_default())
                         .to_string(),
                     exec: entry.exec().unwrap_or_default().to_string(),
                     icon: entry.icon().and_then(lookup_icon),
-                });
-            }
+                },
+            );
         }
     }
 
@@ -165,17 +235,7 @@ fn main() -> Result<(), confy::ConfyError> {
         "<openbox_menu xmlns=\"{}\" xmlns:xsi=\"{}\" xsi:schemaLocation=\"{}\" >",
         OPENBOX_XMLNS, OPENBOX_XSI, OPENBOX_XMLNS
     );
-    for (category, entries_in_cat) in menu_entries.iter().sorted_by_key(|x| x.0) {
-        let category_icon_name = cfg.icon_for_category(category);
-        let icon_str = lookup_icon(&category_icon_name)
-            .map(|p| format!(" icon=\"{}\"", p.display()))
-            .unwrap_or_default();
-        println!("<menu id=\"boxmenu-{category}\" label=\"{category}\" {icon_str}>");
-        for e in entries_in_cat.iter().sorted() {
-            println!("{e}");
-        }
-        println!("</menu>");
-    }
+    root.print(&cfg, "");
     println!("</openbox_menu>");
     Ok(())
 }
