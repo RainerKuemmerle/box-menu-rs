@@ -53,6 +53,90 @@ output:
 Furthermore, launching `box-menu-rs` without a configuration will store the
 default one.
 
+### Configuration example
+
+The configuration file is stored in `$XDG_CONFIG_HOME/box-menu-rs/config.yml` and maps desktop file categories to menu output names. You can also use slash-separated paths to create nested submenus.
+
+```yaml
+category_map:
+  Graphics:
+    output: "Applications/Graphics"
+  Network:
+    output: "Applications/Internet"
+  Audio:
+    output: "Applications/Multimedia"
+  Video:
+    output: "Applications/Multimedia"
+
+output:
+  "Applications/Graphics":
+    icon: "applications-graphics"
+  "Applications/Internet":
+    icon: "applications-internet"
+  "Applications/Multimedia":
+    icon: "applications-multimedia"
+```
+
+In this example, the generated menu will contain an `Applications` submenu with `Graphics`, `Internet`, and `Multimedia` child menus.
+
+### Full configuration example
+
+Below is a complete `config.yml` with category mappings and output icons. Copy this directly into `$XDG_CONFIG_HOME/box-menu-rs/config.yml`.
+
+```yaml
+category_map:
+  AudioVideo:
+    output: "Applications/Multimedia"
+  Audio:
+    output: "Applications/Multimedia"
+  Video:
+    output: "Applications/Multimedia"
+  Development:
+    output: "Applications/Development"
+  Education:
+    output: "Applications/Education"
+  Game:
+    output: "Applications/Games"
+  Graphics:
+    output: "Applications/Graphics"
+  Network:
+    output: "Applications/Internet"
+  Office:
+    output: "Applications/Office"
+  Science:
+    output: "Applications/Science"
+  Settings:
+    output: "Applications/Settings"
+  System:
+    output: "Applications/System"
+  Utility:
+    output: "Applications/Utility"
+
+output:
+  "Applications/Graphics":
+    icon: "applications-graphics"
+  "Applications/Internet":
+    icon: "applications-internet"
+  "Applications/Multimedia":
+    icon: "applications-multimedia"
+  "Applications/Development":
+    icon: "applications-development"
+  "Applications/Education":
+    icon: "applications-education"
+  "Applications/Games":
+    icon: "applications-games"
+  "Applications/Office":
+    icon: "applications-office"
+  "Applications/Science":
+    icon: "applications-science"
+  "Applications/Settings":
+    icon: "applications-settings"
+  "Applications/System":
+    icon: "applications-system"
+  "Applications/Utility":
+    icon: "applications-utility"
+```
+
 ### Screenshot Configuration
 
 Below the `menu.xml` corresponding to the screenshot.
