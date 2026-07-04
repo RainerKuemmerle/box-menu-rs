@@ -1,10 +1,9 @@
 use freedesktop_desktop_entry::{DesktopEntry, desktop_entries, get_languages_from_env};
 use freedesktop_icons::{default_theme_gtk, lookup};
-use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::sync::OnceLock;
-use std::{collections::{BTreeMap, HashMap, HashSet}, path::PathBuf};
+use std::{collections::{BTreeMap, BTreeSet, HashMap}, path::PathBuf};
 
 const CATEGORY_ICON_PREFIX: &str = "applications-";
 const OPENBOX_XMLNS: &str = "http://openbox.org/";
@@ -38,7 +37,7 @@ impl fmt::Display for Entry {
 struct MenuNode {
     label: String,
     children: BTreeMap<String, MenuNode>,
-    entries: HashSet<Entry>,
+    entries: BTreeSet<Entry>,
 }
 
 impl MenuNode {
@@ -46,7 +45,7 @@ impl MenuNode {
         Self {
             label,
             children: BTreeMap::new(),
-            entries: HashSet::new(),
+            entries: BTreeSet::new(),
         }
     }
 
@@ -87,7 +86,7 @@ impl MenuNode {
             child.print(config, &child_path);
         }
 
-        for entry in self.entries.iter().sorted() {
+        for entry in &self.entries {
             println!("{}", entry);
         }
 
@@ -145,7 +144,7 @@ impl Config {
     pub fn empty_tree(&self) -> MenuNode {
         let mut root = MenuNode::new(String::new());
         for (category, config_category) in self.category_map.iter() {
-            let output_name = config_category.output.as_ref().unwrap_or(category);
+            let output_name = config_category.output.as_deref().unwrap_or(category);
             root.node_for_path(output_name);
         }
         root
