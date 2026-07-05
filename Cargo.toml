@@ -10,3 +10,4 @@ freedesktop-icons = "0.4.0"
 itertools = "0.15.0"
 lazy_static = "1.5.0"
 serde = { version = "1.0.228", features = ["derive"] }
+clap = { version = "4.6.1", features = ["derive"] }

@@ -1,7 +1,9 @@
 use freedesktop_desktop_entry::{DesktopEntry, desktop_entries, get_languages_from_env};
-use freedesktop_icons::{default_theme_gtk, lookup};
+use clap::Parser;
+use freedesktop_icons::lookup;
 use serde::{Deserialize, Serialize};
 use std::fmt;
+use std::process::Command;
 use std::sync::OnceLock;
 use std::{collections::{BTreeMap, BTreeSet, HashMap}, path::PathBuf};
 
@@ -132,6 +134,95 @@ fn lookup_icon(name: &str) -> Option<PathBuf> {
         .find()
 }
 
+#[derive(Debug, Parser)]
+#[command(author, version, about = "Generate an Openbox-compatible application menu", long_about = None)]
+struct DebugOptions {
+    #[arg(long = "debug-program", help = "Inspect icon lookup for a given desktop entry Name")]
+    program_name: Option<String>,
+}
+
+impl DebugOptions {
+    fn program_name(&self) -> Option<&str> {
+        self.program_name.as_deref()
+    }
+}
+
+fn debug_program_icon_resolution(
+    entries: &[DesktopEntry],
+    locales: &[String],
+    config: &Config,
+    debug_options: &DebugOptions,
+) {
+    let name = match debug_options.program_name() {
+        Some(name) => name,
+        None => return,
+    };
+
+    eprintln!("DEBUG: inspecting program '{}'", name);
+    eprintln!("DEBUG: icon theme = {}", theme());
+
+    let normalized_name = name.to_lowercase();
+    let matching: Vec<_> = entries
+        .iter()
+        .filter(|entry| entry.full_name(locales).unwrap_or_default().to_lowercase() == normalized_name)
+        .collect();
+
+    if matching.is_empty() {
+        eprintln!("DEBUG: no desktop entry matched the Name '{}'.", name);
+        return;
+    }
+
+    for (index, entry) in matching.into_iter().enumerate() {
+        let label = entry.full_name(locales).unwrap_or_default();
+        let exec = entry.exec().unwrap_or_default();
+        let icon_field = entry.icon().unwrap_or_default();
+        let entry_icon_path = entry.icon().and_then(lookup_icon);
+
+        eprintln!("DEBUG: match #{}", index + 1);
+        eprintln!("  Name: {}", label);
+        eprintln!("  Exec: {}", exec);
+        eprintln!("  Desktop icon field: {}", if icon_field.is_empty() { "<none>" } else { &icon_field });
+
+        match entry_icon_path {
+            Some(path) => eprintln!("  Resolved entry icon: {}", path.display()),
+            None if icon_field.is_empty() => {
+                eprintln!("  Entry icon is not defined in the desktop file.")
+            }
+            None => eprintln!("  Entry icon lookup failed for '{}'.", icon_field),
+        }
+
+        let categories = entry.categories().unwrap_or_default();
+        if categories.is_empty() {
+            eprintln!("  Categories: <none>");
+            continue;
+        }
+
+        for category in categories {
+            eprintln!("  Category: {}", category);
+            let category_name = &category[..];
+            match config.category_map.get(category_name) {
+                Some(mapped_category) => {
+                    let output_name = mapped_category.output.as_deref().unwrap_or(category_name);
+                    let category_icon_name = config.icon_for_category(output_name);
+                    let category_icon_path = lookup_icon(&category_icon_name);
+
+                    eprintln!("    Output path: {}", output_name);
+                    eprintln!("    Category icon name: {}", category_icon_name);
+
+                    match category_icon_path {
+                        Some(path) => eprintln!("    Resolved category icon: {}", path.display()),
+                        None => eprintln!("    Category icon lookup failed for '{}'.", category_icon_name),
+                    }
+                }
+                None => {
+                    eprintln!("    Category is not included in category_map and will be ignored.");
+                }
+            }
+        }
+    }
+    eprintln!("DEBUG: inspection complete.");
+}
+
 #[derive(Serialize, Deserialize)]
 struct ConfigCategory {
     output: Option<String>,
@@ -212,7 +303,15 @@ impl ::std::default::Default for Config {
     }
 }
 
-fn main() -> Result<(), confy::ConfyError> {
+fn main() {
+    if let Err(err) = run() {
+        eprintln!("error: {}", err);
+        std::process::exit(1);
+    }
+}
+
+fn run() -> Result<(), Box<dyn std::error::Error>> {
+    let debug_options = DebugOptions::parse();
     let cfg: Config = confy::load("box-menu-rs", "config")?;
 
     let locales = get_languages_from_env();
@@ -220,6 +319,11 @@ fn main() -> Result<(), confy::ConfyError> {
         .into_iter()
         .filter(|x| x.categories().is_some())
         .collect();
+
+    if debug_options.program_name().is_some() {
+        debug_program_icon_resolution(&entries, &locales, &cfg, &debug_options);
+        return Ok(());
+    }
 
     let mut root = cfg.empty_tree();
     for entry in entries {
