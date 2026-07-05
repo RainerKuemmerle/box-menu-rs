@@ -53,6 +53,21 @@ output:
 Furthermore, launching `box-menu-rs` without a configuration will store the
 default one.
 
+### Debugging icon lookup
+
+Use `--debug-program <Name>` to inspect how a specific desktop entry is resolved.
+This prints the matching desktop entry Name, Exec command, desktop icon field,
+resolved entry icon path, category mapping, category icon name, and whether the
+category icon was found.
+
+Example:
+
+```sh
+box-menu-rs --debug-program "Firefox"
+```
+
+The menu XML is not printed after the debug diagnostics, instead the program terminates.
+
 ### Configuration example
 
 The configuration file is stored in `$XDG_CONFIG_HOME/box-menu-rs/config.yml` and maps desktop file categories to menu output names. You can also use slash-separated paths to create nested submenus.
