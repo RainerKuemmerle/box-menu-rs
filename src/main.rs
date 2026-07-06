@@ -1,11 +1,15 @@
-use freedesktop_desktop_entry::{DesktopEntry, desktop_entries, get_languages_from_env};
 use clap::Parser;
+use freedesktop_desktop_entry::{DesktopEntry, desktop_entries, get_languages_from_env};
 use freedesktop_icons::lookup;
 use serde::{Deserialize, Serialize};
+use std::env;
 use std::fmt;
 use std::process::Command;
 use std::sync::OnceLock;
-use std::{collections::{BTreeMap, BTreeSet, HashMap}, path::PathBuf};
+use std::{
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
+    path::PathBuf,
+};
 
 const CATEGORY_ICON_PREFIX: &str = "applications-";
 const OPENBOX_XMLNS: &str = "http://openbox.org/";
@@ -54,9 +58,10 @@ impl MenuNode {
     fn node_for_path(&mut self, path: &str) -> &mut MenuNode {
         let mut current = self;
         for segment in path.split('/').filter(|segment| !segment.is_empty()) {
-            current = current.children.entry(segment.to_string()).or_insert_with(|| {
-                MenuNode::new(segment.to_string())
-            });
+            current = current
+                .children
+                .entry(segment.to_string())
+                .or_insert_with(|| MenuNode::new(segment.to_string()));
         }
         current
     }
@@ -137,7 +142,10 @@ fn lookup_icon(name: &str) -> Option<PathBuf> {
 #[derive(Debug, Parser)]
 #[command(author, version, about = "Generate an Openbox-compatible application menu", long_about = None)]
 struct DebugOptions {
-    #[arg(long = "debug-program", help = "Inspect icon lookup for a given desktop entry Name")]
+    #[arg(
+        long = "debug-program",
+        help = "Inspect icon lookup for a given desktop entry Name"
+    )]
     program_name: Option<String>,
 }
 
@@ -152,6 +160,7 @@ fn debug_program_icon_resolution(
     locales: &[String],
     config: &Config,
     debug_options: &DebugOptions,
+    current_desktop: Option<&HashSet<String>>,
 ) {
     let name = match debug_options.program_name() {
         Some(name) => name,
@@ -160,11 +169,27 @@ fn debug_program_icon_resolution(
 
     eprintln!("DEBUG: inspecting program '{}'", name);
     eprintln!("DEBUG: icon theme = {}", theme());
+    eprintln!(
+        "DEBUG: visibility filtering = {}",
+        if config.options.visibility_filter {
+            "enabled"
+        } else {
+            "disabled"
+        }
+    );
+    eprintln!(
+        "DEBUG: current desktop = {}",
+        current_desktop
+            .map(|values| values.iter().cloned().collect::<Vec<_>>().join(", "))
+            .unwrap_or_else(|| "<unknown>".into())
+    );
 
     let normalized_name = name.to_lowercase();
     let matching: Vec<_> = entries
         .iter()
-        .filter(|entry| entry.full_name(locales).unwrap_or_default().to_lowercase() == normalized_name)
+        .filter(|entry| {
+            entry.full_name(locales).unwrap_or_default().to_lowercase() == normalized_name
+        })
         .collect();
 
     if matching.is_empty() {
@@ -174,14 +199,29 @@ fn debug_program_icon_resolution(
 
     for (index, entry) in matching.into_iter().enumerate() {
         let label = entry.full_name(locales).unwrap_or_default();
+        let desktop_file_path = entry.path.to_string_lossy();
         let exec = entry.exec().unwrap_or_default();
         let icon_field = entry.icon().unwrap_or_default();
         let entry_icon_path = entry.icon().and_then(lookup_icon);
+        let visibility_reason = visibility_exclusion_reason(entry, current_desktop);
 
         eprintln!("DEBUG: match #{}", index + 1);
+
         eprintln!("  Name: {}", label);
+        eprintln!("  Desktop file: {}", desktop_file_path);
         eprintln!("  Exec: {}", exec);
-        eprintln!("  Desktop icon field: {}", if icon_field.is_empty() { "<none>" } else { &icon_field });
+        eprintln!(
+            "  Desktop icon field: {}",
+            if icon_field.is_empty() {
+                "<none>"
+            } else {
+                &icon_field
+            }
+        );
+        eprintln!(
+            "  Exclusion reason: {}",
+            visibility_reason.unwrap_or_else(|| "<none>".into())
+        );
 
         match entry_icon_path {
             Some(path) => eprintln!("  Resolved entry icon: {}", path.display()),
@@ -211,7 +251,10 @@ fn debug_program_icon_resolution(
 
                     match category_icon_path {
                         Some(path) => eprintln!("    Resolved category icon: {}", path.display()),
-                        None => eprintln!("    Category icon lookup failed for '{}'.", category_icon_name),
+                        None => eprintln!(
+                            "    Category icon lookup failed for '{}'.",
+                            category_icon_name
+                        ),
                     }
                 }
                 None => {
@@ -241,9 +284,24 @@ struct OutputCategory {
 }
 
 #[derive(Serialize, Deserialize)]
+struct Options {
+    visibility_filter: bool,
+}
+
+impl Default for Options {
+    fn default() -> Self {
+        Self {
+            visibility_filter: true,
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize)]
 struct Config {
     category_map: HashMap<String, ConfigCategory>,
     output: Option<HashMap<String, OutputCategory>>,
+    #[serde(default)]
+    options: Options,
 }
 impl Config {
     pub fn empty_tree(&self) -> MenuNode {
@@ -263,6 +321,81 @@ impl Config {
             .cloned()
             .unwrap_or_else(|| format!("{}{}", CATEGORY_ICON_PREFIX, category.to_lowercase()))
     }
+}
+
+fn current_desktop_environment() -> Option<String> {
+    env::var("XDG_CURRENT_DESKTOP").ok().and_then(|val| {
+        if val.trim().is_empty() {
+            None
+        } else {
+            Some(val)
+        }
+    })
+}
+
+fn normalize_desktop_token(token: &str) -> Option<String> {
+    let trimmed = token.trim();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed.to_lowercase())
+    }
+}
+
+fn parse_current_desktop(current_desktop: &str) -> HashSet<String> {
+    current_desktop
+        .split(':')
+        .flat_map(str::split_ascii_whitespace)
+        .filter_map(normalize_desktop_token)
+        .collect()
+}
+
+fn normalize_entry_desktop_tokens(tokens: &[&str]) -> Vec<String> {
+    tokens
+        .iter()
+        .filter_map(|token| normalize_desktop_token(token))
+        .collect()
+}
+
+fn visibility_exclusion_reason(
+    entry: &DesktopEntry,
+    current_desktop: Option<&HashSet<String>>,
+) -> Option<String> {
+    if entry.hidden() {
+        return Some("Hidden=true".into());
+    }
+
+    if entry.no_display() {
+        return Some("NoDisplay=true".into());
+    }
+
+    if let Some(only_show) = entry.only_show_in() {
+        if let Some(current) = current_desktop {
+            let normalized_allowed = normalize_entry_desktop_tokens(&only_show);
+            if !normalized_allowed.is_empty() {
+                if normalized_allowed
+                    .iter()
+                    .all(|allowed| !current.contains(allowed.as_str()))
+                {
+                    return Some(format!("OnlyShowIn={:?}", normalized_allowed));
+                }
+            }
+        }
+    }
+
+    if let Some(not_show) = entry.not_show_in() {
+        if let Some(current) = current_desktop {
+            let normalized_blocked = normalize_entry_desktop_tokens(&not_show);
+            if let Some(blocked) = normalized_blocked
+                .iter()
+                .find(|blocked| current.contains(blocked.as_str()))
+            {
+                return Some(format!("NotShowIn={}", blocked));
+            }
+        }
+    }
+
+    None
 }
 
 impl ::std::default::Default for Config {
@@ -299,6 +432,7 @@ impl ::std::default::Default for Config {
         Self {
             category_map: m,
             output: None,
+            options: Options::default(),
         }
     }
 }
@@ -315,13 +449,38 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     let cfg: Config = confy::load("box-menu-rs", "config")?;
 
     let locales = get_languages_from_env();
-    let entries: Vec<DesktopEntry> = desktop_entries(&locales)
-        .into_iter()
+    let current_desktop = current_desktop_environment();
+    let current_desktop_parsed = current_desktop.as_deref().map(parse_current_desktop);
+    let all_entries: Vec<DesktopEntry> = desktop_entries(&locales).into_iter().collect();
+    let mut excluded_entries = Vec::new();
+    let entries: Vec<&DesktopEntry> = all_entries
+        .iter()
         .filter(|x| x.categories().is_some())
+        .filter(|x| {
+            if cfg.options.visibility_filter {
+                if let Some(reason) =
+                    visibility_exclusion_reason(x, current_desktop_parsed.as_ref())
+                {
+                    let label = x.full_name(&locales).unwrap_or_default().to_string();
+                    excluded_entries.push((label, reason));
+                    false
+                } else {
+                    true
+                }
+            } else {
+                true
+            }
+        })
         .collect();
 
     if debug_options.program_name().is_some() {
-        debug_program_icon_resolution(&entries, &locales, &cfg, &debug_options);
+        debug_program_icon_resolution(
+            &all_entries,
+            &locales,
+            &cfg,
+            &debug_options,
+            current_desktop_parsed.as_ref(),
+        );
         return Ok(());
     }
 
@@ -354,5 +513,15 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     );
     root.print(&cfg, "");
     println!("</openbox_menu>");
+
+    if !excluded_entries.is_empty() {
+        println!("<!-- Excluded entries (visibility filtering):");
+        for (label, reason) in excluded_entries {
+            let comment_line = format!("  {} ({})", label, reason).replace("--", "—");
+            println!("{}", comment_line);
+        }
+        println!("-->");
+    }
+
     Ok(())
 }

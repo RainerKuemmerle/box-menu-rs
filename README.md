@@ -50,6 +50,18 @@ output:
   ...
 ```
 
+Optionally, `config.yml` can also include runtime options under `options`.
+The new `visibility_filter` option controls whether desktop entry visibility
+metadata is honored.
+
+```yaml
+options:
+  visibility_filter: true
+```
+
+- `true` (default): skip `Hidden=true`, `NoDisplay=true`, and honor `OnlyShowIn` / `NotShowIn`
+- `false`: include all desktop entries regardless of those visibility restrictions
+
 Furthermore, launching `box-menu-rs` without a configuration will store the
 default one.
 
