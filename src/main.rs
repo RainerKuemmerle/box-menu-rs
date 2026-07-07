@@ -232,6 +232,7 @@ fn debug_program_icon_resolution(
         }
 
         let categories = entry.categories().unwrap_or_default();
+        let categories: Vec<_> = categories.into_iter().filter(|c| !c.is_empty()).collect();
         if categories.is_empty() {
             eprintln!("  Categories: <none>");
             continue;
@@ -490,6 +491,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             .categories()
             .unwrap()
             .into_iter()
+            .filter(|k| !k.is_empty())
             .filter(|&k| cfg.category_map.contains_key(k))
         {
             let mapped_category = cfg.category_map.get(c).unwrap();
