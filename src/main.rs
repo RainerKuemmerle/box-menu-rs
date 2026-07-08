@@ -30,6 +30,10 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     let cli_options = CliOptions::parse();
     let cfg = load_config(cli_options.config_file())?;
 
+    if let Some(theme) = cfg.options.icon_theme.clone() {
+        crate::icon::set_theme(theme);
+    }
+
     let locales = get_languages_from_env();
     let current_desktop = current_desktop_environment();
     let current_desktop_parsed = current_desktop.as_deref().map(parse_current_desktop);

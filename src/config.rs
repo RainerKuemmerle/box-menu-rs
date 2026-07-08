@@ -23,12 +23,14 @@ pub struct OutputCategory {
 #[derive(Serialize, Deserialize)]
 pub struct Options {
     pub visibility_filter: bool,
+    pub icon_theme: Option<String>,
 }
 
 impl Default for Options {
     fn default() -> Self {
         Self {
             visibility_filter: true,
+            icon_theme: None,
         }
     }
 }
