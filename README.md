@@ -51,13 +51,22 @@ output:
 ```
 
 Optionally, `config.yml` can also include runtime options under `options`.
-The new `visibility_filter` option controls whether desktop entry visibility
-metadata is honored.
 
 ```yaml
 options:
+  icon_theme: "Papirus"
   visibility_filter: true
 ```
+
+The `icon_theme` option forces the icon theme used for icon lookup instead of
+reading the default theme from the desktop environment.
+
+This is useful when the running desktop environment does not expose the icon
+theme via `gsettings`, or when you want to use a different icon theme just for
+`box-menu-rs`.
+
+The `visibility_filter` option controls whether desktop entry visibility
+metadata is honored:
 
 - `true` (default): skip `Hidden=true`, `NoDisplay=true`, and honor `OnlyShowIn` / `NotShowIn`
 - `false`: include all desktop entries regardless of those visibility restrictions
