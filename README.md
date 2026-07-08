@@ -65,6 +65,13 @@ options:
 Furthermore, launching `box-menu-rs` without a configuration will store the
 default one.
 
+You can also override the config source at runtime with `--config-file`.
+This loads the specified YAML file instead of the default `$XDG_CONFIG_HOME/box-menu-rs/config.yml`.
+
+```sh
+box-menu-rs --config-file /path/to/config.yml
+```
+
 ### Debugging icon lookup
 
 Use `--debug-program <Name>` to inspect how a specific desktop entry is resolved.
