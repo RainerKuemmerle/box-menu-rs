@@ -32,6 +32,6 @@ repos:
         description: Lint rust sources
         entry: cargo clippy
         language: system
-        args: ["--", "-D", "warnings"]
+        args: ["--all-targets", "--all-features", "--", "-D", "warnings"]
         types: [rust]
         pass_filenames: false
