@@ -51,8 +51,14 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
 
-    if cli_options.list_programs() {
-        list_programs(&all_entries, &locales, &cfg, current_desktop_parsed.as_ref());
+    if let Some(action) = cli_options.list_action() {
+        list_programs(
+            &all_entries,
+            &locales,
+            &cfg,
+            current_desktop_parsed.as_ref(),
+            action,
+        );
         return Ok(());
     }
 
@@ -125,14 +131,35 @@ fn list_programs(
     locales: &[String],
     config: &Config,
     current_desktop: Option<&HashSet<String>>,
+    action: crate::cli::ListAction,
 ) {
     let mut entries: Vec<_> = entries
         .iter()
         .filter(|entry| entry.categories().is_some())
+        .filter(|entry| match action {
+            crate::cli::ListAction::All => true,
+            crate::cli::ListAction::MissingIcons => {
+                let icon_field = entry.icon().unwrap_or_default();
+                !icon_field.is_empty() && entry.icon().and_then(lookup_icon).is_none()
+            }
+            crate::cli::ListAction::Excluded => visibility_exclusion_reason(entry, current_desktop).is_some(),
+        })
         .collect();
     entries.sort_by_key(|entry| entry.full_name(locales).unwrap_or_default());
 
-    println!("Discovered desktop entries:");
+    match action {
+        crate::cli::ListAction::All => println!("Discovered desktop entries:"),
+        crate::cli::ListAction::MissingIcons => {
+            println!("Desktop entries with missing entry icon lookup:");
+        }
+        crate::cli::ListAction::Excluded => println!("Hidden/excluded desktop entries:"),
+    }
+
+    if entries.is_empty() {
+        println!("<none>");
+        return;
+    }
+
     for entry in entries {
         let label = entry.full_name(locales).unwrap_or_default();
         let desktop_file_path = entry.path.to_string_lossy();
