@@ -84,14 +84,17 @@ box-menu-rs --config-file /path/to/config.yml
 ### Inspecting a specific program
 
 Use `--list program <Name>` to inspect how a specific desktop entry is resolved.
+The provided name is matched case-insensitively against desktop entry names as a
+substring, so `Firefox` and `fire` both match `Mozilla Firefox`.
 This prints the matching desktop entry Name, Exec command, desktop icon field,
 resolved entry icon path, category mapping, category icon name, and whether the
 category icon was found.
 
-Example:
+Examples:
 
 ```sh
 box-menu-rs --list program "Firefox"
+box-menu-rs --list program "fire"
 ```
 
 The menu XML is not printed after the diagnostics; the program terminates after the report.

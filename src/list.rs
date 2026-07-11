@@ -8,9 +8,10 @@ pub fn list_programs(
     config: &Config,
     current_desktop: Option<&HashSet<String>>,
     program_name: Option<&str>,
-    program_name_filter: Option<&str>,
     action: crate::cli::ListAction,
 ) {
+    let program_name_filter = program_name.map(|name| name.to_lowercase());
+
     let mut entries: Vec<_> = entries
         .iter()
         .filter(|entry| entry.categories().is_some())
@@ -24,8 +25,11 @@ pub fn list_programs(
                 visibility_exclusion_reason(entry, current_desktop).is_some()
             }
             crate::cli::ListAction::Program => {
-                if let Some(filter_name) = program_name_filter {
-                    entry.full_name(locales).unwrap_or_default().to_lowercase() == filter_name
+                if let Some(filter_name) = program_name_filter.as_deref() {
+                    entry.full_name(locales)
+                        .unwrap_or_default()
+                        .to_lowercase()
+                        .contains(filter_name)
                 } else {
                     false
                 }

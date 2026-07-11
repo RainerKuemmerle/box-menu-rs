@@ -6,7 +6,7 @@ use std::path::PathBuf;
 pub struct CliOptions {
     #[arg(
         value_name = "NAME",
-        help = "Desktop entry Name to inspect when using --list program.",
+        help = "Desktop entry Name substring to inspect when using --list program.",
         required_if_eq("list", "program"),
     )]
     program_name: Option<String>,
