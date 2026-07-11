@@ -41,7 +41,6 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     let current_desktop_parsed = current_desktop.as_deref().map(parse_current_desktop);
     let all_entries: Vec<DesktopEntry> = desktop_entries(&locales).into_iter().collect();
     let program_name = cli_options.program_name();
-    let program_name_filter = program_name.map(|name| name.to_lowercase());
 
     if let Some(action) = cli_options.list_action() {
         if matches!(action, crate::cli::ListAction::Program) && program_name.is_none() {
@@ -63,7 +62,6 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             &cfg,
             current_desktop_parsed.as_ref(),
             program_name,
-            program_name_filter.as_deref(),
             action,
         );
         return Ok(());
