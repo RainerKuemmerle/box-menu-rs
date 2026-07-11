@@ -1,4 +1,4 @@
-use clap::Parser;
+use clap::{Parser, ValueEnum};
 use freedesktop_desktop_entry::DesktopEntry;
 use std::{collections::HashSet, path::PathBuf};
 
@@ -21,10 +21,19 @@ pub struct CliOptions {
     config_file: Option<PathBuf>,
 
     #[arg(
-        long = "list-programs",
-        help = "List discovered desktop entries and their mapped output categories instead of generating XML",
+        long = "list",
+        value_name = "ACTION",
+        help = "List discovered desktop entries using one of: all, missing-icons, excluded",
     )]
-    list_programs: bool,
+    list: Option<ListAction>,
+}
+
+#[derive(Copy, Clone, Debug, ValueEnum)]
+#[value(rename_all = "kebab-case")]
+pub enum ListAction {
+    All,
+    MissingIcons,
+    Excluded,
 }
 
 impl CliOptions {
@@ -36,8 +45,8 @@ impl CliOptions {
         self.config_file.as_ref()
     }
 
-    pub fn list_programs(&self) -> bool {
-        self.list_programs
+    pub fn list_action(&self) -> Option<ListAction> {
+        self.list
     }
 }
 

@@ -98,15 +98,18 @@ The menu XML is not printed after the debug diagnostics, instead the program ter
 
 ### Listing discovered programs
 
-Use `--list-programs` to inspect all discovered desktop entries and their
-mapped categories before generating XML. This is useful when verifying how the
-configured `category_map` will classify applications and whether visibility
-filtering will exclude any entries.
+Use `--list <ACTION>` to inspect discovered desktop entries before generating XML. Available actions are:
 
-Example:
+- `all`: list all discovered desktop entries and their mapped categories.
+- `missing-icons`: list entries whose desktop file icon lookup failed.
+- `excluded`: list hidden entries that are excluded by visibility filtering.
+
+Examples:
 
 ```sh
-box-menu-rs --list-programs
+box-menu-rs --list all
+box-menu-rs --list missing-icons
+box-menu-rs --list excluded
 ```
 
 ### Configuration example
