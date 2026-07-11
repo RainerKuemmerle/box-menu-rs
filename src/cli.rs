@@ -19,6 +19,12 @@ pub struct CliOptions {
         help = "Load configuration from a specific YAML file instead of the default XDG config",
     )]
     config_file: Option<PathBuf>,
+
+    #[arg(
+        long = "list-programs",
+        help = "List discovered desktop entries and their mapped output categories instead of generating XML",
+    )]
+    list_programs: bool,
 }
 
 impl CliOptions {
@@ -28,6 +34,10 @@ impl CliOptions {
 
     pub fn config_file(&self) -> Option<&PathBuf> {
         self.config_file.as_ref()
+    }
+
+    pub fn list_programs(&self) -> bool {
+        self.list_programs
     }
 }
 
