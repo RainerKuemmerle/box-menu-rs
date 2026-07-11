@@ -5,17 +5,18 @@ mod cli;
 mod config;
 mod escape;
 mod icon;
+mod list;
 mod menu;
 mod visibility;
 
 use crate::cli::CliOptions;
-use crate::config::{load_config, Config};
+use crate::config::load_config;
 use crate::icon::lookup_icon;
+use crate::list::list_programs;
 use crate::menu::Entry;
 use crate::visibility::{
     current_desktop_environment, parse_current_desktop, visibility_exclusion_reason,
 };
-use std::collections::HashSet;
 
 const OPENBOX_XMLNS: &str = "http://openbox.org/";
 const OPENBOX_XSI: &str = "http://www.w3.org/2001/XMLSchema-instance";
@@ -130,114 +131,4 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     Ok(())
-}
-
-fn list_programs(
-    entries: &[DesktopEntry],
-    locales: &[String],
-    config: &Config,
-    current_desktop: Option<&HashSet<String>>,
-    program_name: Option<&str>,
-    program_name_filter: Option<&str>,
-    action: crate::cli::ListAction,
-) {
-    let mut entries: Vec<_> = entries
-        .iter()
-        .filter(|entry| entry.categories().is_some())
-        .filter(|entry| match action {
-            crate::cli::ListAction::All => true,
-            crate::cli::ListAction::MissingIcons => {
-                let icon_field = entry.icon().unwrap_or_default();
-                !icon_field.is_empty() && entry.icon().and_then(lookup_icon).is_none()
-            }
-            crate::cli::ListAction::Excluded => visibility_exclusion_reason(entry, current_desktop).is_some(),
-            crate::cli::ListAction::Program => {
-                if let Some(filter_name) = program_name_filter {
-                    entry.full_name(locales).unwrap_or_default().to_lowercase() == filter_name
-                } else {
-                    false
-                }
-            }
-        })
-        .collect();
-    entries.sort_by_key(|entry| entry.full_name(locales).unwrap_or_default());
-
-    match action {
-        crate::cli::ListAction::All => println!("Discovered desktop entries:"),
-        crate::cli::ListAction::MissingIcons => {
-            println!("Desktop entries with missing entry icon lookup:");
-        }
-        crate::cli::ListAction::Excluded => println!("Hidden/excluded desktop entries:"),
-        crate::cli::ListAction::Program => {
-            if let Some(name) = program_name {
-                println!("Desktop entries matching Name: {}", name);
-            } else {
-                println!("Desktop entries matching Name:");
-            }
-        }
-    }
-
-    if entries.is_empty() {
-        println!("<none>");
-        return;
-    }
-
-    for entry in entries {
-        let label = entry.full_name(locales).unwrap_or_default();
-        let desktop_file_path = entry.path.to_string_lossy();
-        let exec = entry.exec().unwrap_or_default();
-        let icon_field = entry.icon().unwrap_or_default();
-        let entry_icon_path = entry.icon().and_then(lookup_icon);
-        let visibility_reason = visibility_exclusion_reason(entry, current_desktop);
-        let excluded_by_filter = visibility_reason.is_some() && config.options.visibility_filter;
-
-        println!("\nProgram: {}", label);
-        println!("  Desktop file: {}", desktop_file_path);
-        println!("  Exec: {}", exec);
-        println!("  Icon field: {}", if icon_field.is_empty() { "<none>" } else { &icon_field });
-        match entry_icon_path {
-            Some(path) => println!("  Resolved entry icon: {}", path.display()),
-            None if icon_field.is_empty() => println!("  Entry icon is not defined in the desktop file."),
-            None => println!("  Entry icon lookup failed for '{}'.", icon_field),
-        }
-        if let Some(reason) = visibility_reason {
-            if config.options.visibility_filter {
-                println!("  Visibility: excluded ({})", reason);
-            } else {
-                println!("  Visibility: would be excluded ({}) but filtering is disabled", reason);
-            }
-        } else {
-            println!("  Visibility: included");
-        }
-
-        let categories = entry.categories().unwrap_or_default();
-        let categories: Vec<_> = categories.into_iter().filter(|c| !c.is_empty()).collect();
-        if categories.is_empty() {
-            println!("  Categories: <none>");
-            continue;
-        }
-
-        for category in categories {
-            match config.category_map.get(&category[..]) {
-                Some(mapped_category) => {
-                    let output_name = mapped_category.output.as_deref().unwrap_or(&category);
-                    let category_icon_name = config.icon_for_category(output_name);
-                    let category_icon_path = lookup_icon(&category_icon_name);
-
-                    println!("  Category: {}", category);
-                    println!("    Mapped output: {}", output_name);
-                    println!("    Category icon: {}", category_icon_name);
-                    match category_icon_path {
-                        Some(path) => println!("    Resolved category icon: {}", path.display()),
-                        None => println!("    Category icon lookup failed."),
-                    }
-                }
-                None => println!("  Category: {} (not mapped)", category),
-            }
-        }
-
-        if excluded_by_filter {
-            println!("  Note: this entry would be excluded from XML output by visibility filtering.");
-        }
-    }
 }
