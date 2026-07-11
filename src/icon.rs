@@ -15,17 +15,16 @@ fn detect_theme() -> String {
     if let Ok(output) = Command::new("gsettings")
         .args(["get", "org.gnome.desktop.interface", "icon-theme"])
         .output()
+        && output.status.success()
     {
-        if output.status.success() {
-            let theme = String::from_utf8_lossy(&output.stdout)
-                .trim()
-                .trim_matches('"')
-                .trim_matches('"')
-                .trim_matches('\'')
-                .to_string();
-            if !theme.is_empty() {
-                return theme;
-            }
+        let theme = String::from_utf8_lossy(&output.stdout)
+            .trim()
+            .trim_matches('"')
+            .trim_matches('"')
+            .trim_matches('\'')
+            .to_string();
+        if !theme.is_empty() {
+            return theme;
         }
     }
     "hicolor".into()

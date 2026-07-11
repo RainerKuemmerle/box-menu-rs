@@ -1,5 +1,9 @@
 use crate::{config::Config, escape, icon::lookup_icon};
-use std::{collections::{BTreeMap, BTreeSet}, fmt, path::PathBuf};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    fmt,
+    path::PathBuf,
+};
 
 #[derive(Eq, Hash, PartialEq, PartialOrd, Ord)]
 pub struct Entry {
@@ -86,6 +90,6 @@ impl MenuNode {
     }
 
     fn menu_id(path: &str) -> String {
-        path.replace('/', "-").replace(' ', "-")
+        path.replace(['/', ' '], "-")
     }
 }
