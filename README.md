@@ -81,9 +81,9 @@ This loads the specified YAML file instead of the default `$XDG_CONFIG_HOME/box-
 box-menu-rs --config-file /path/to/config.yml
 ```
 
-### Debugging icon lookup
+### Inspecting a specific program
 
-Use `--debug-program <Name>` to inspect how a specific desktop entry is resolved.
+Use `--list program <Name>` to inspect how a specific desktop entry is resolved.
 This prints the matching desktop entry Name, Exec command, desktop icon field,
 resolved entry icon path, category mapping, category icon name, and whether the
 category icon was found.
@@ -91,10 +91,10 @@ category icon was found.
 Example:
 
 ```sh
-box-menu-rs --debug-program "Firefox"
+box-menu-rs --list program "Firefox"
 ```
 
-The menu XML is not printed after the debug diagnostics, instead the program terminates.
+The menu XML is not printed after the diagnostics; the program terminates after the report.
 
 ### Listing discovered programs
 
@@ -103,6 +103,7 @@ Use `--list <ACTION>` to inspect discovered desktop entries before generating XM
 - `all`: list all discovered desktop entries and their mapped categories.
 - `missing-icons`: list entries whose desktop file icon lookup failed.
 - `excluded`: list hidden entries that are excluded by visibility filtering.
+- `program`: inspect entries matching a specific desktop entry Name (requires `NAME` after `program`).
 
 Examples:
 
@@ -110,6 +111,7 @@ Examples:
 box-menu-rs --list all
 box-menu-rs --list missing-icons
 box-menu-rs --list excluded
+box-menu-rs --list program "Firefox"
 ```
 
 ### Configuration example

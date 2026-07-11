@@ -8,7 +8,7 @@ mod icon;
 mod menu;
 mod visibility;
 
-use crate::cli::{CliOptions, debug_program_icon_resolution};
+use crate::cli::CliOptions;
 use crate::config::{load_config, Config};
 use crate::icon::lookup_icon;
 use crate::menu::Entry;
@@ -39,24 +39,30 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     let current_desktop = current_desktop_environment();
     let current_desktop_parsed = current_desktop.as_deref().map(parse_current_desktop);
     let all_entries: Vec<DesktopEntry> = desktop_entries(&locales).into_iter().collect();
-
-    if cli_options.program_name().is_some() {
-        debug_program_icon_resolution(
-            &all_entries,
-            &locales,
-            &cfg,
-            &cli_options,
-            current_desktop_parsed.as_ref(),
-        );
-        return Ok(());
-    }
+    let program_name = cli_options.program_name();
+    let program_name_filter = program_name.map(|name| name.to_lowercase());
 
     if let Some(action) = cli_options.list_action() {
+        if matches!(action, crate::cli::ListAction::Program) && program_name.is_none() {
+            return Err(Box::new(clap::Error::raw(
+                clap::error::ErrorKind::MissingRequiredArgument,
+                "NAME is required when --list program is used",
+            )));
+        }
+        if !matches!(action, crate::cli::ListAction::Program) && program_name.is_some() {
+            return Err(Box::new(clap::Error::raw(
+                clap::error::ErrorKind::ArgumentConflict,
+                "NAME can only be used with --list program",
+            )));
+        }
+
         list_programs(
             &all_entries,
             &locales,
             &cfg,
             current_desktop_parsed.as_ref(),
+            program_name,
+            program_name_filter.as_deref(),
             action,
         );
         return Ok(());
@@ -131,6 +137,8 @@ fn list_programs(
     locales: &[String],
     config: &Config,
     current_desktop: Option<&HashSet<String>>,
+    program_name: Option<&str>,
+    program_name_filter: Option<&str>,
     action: crate::cli::ListAction,
 ) {
     let mut entries: Vec<_> = entries
@@ -143,6 +151,13 @@ fn list_programs(
                 !icon_field.is_empty() && entry.icon().and_then(lookup_icon).is_none()
             }
             crate::cli::ListAction::Excluded => visibility_exclusion_reason(entry, current_desktop).is_some(),
+            crate::cli::ListAction::Program => {
+                if let Some(filter_name) = program_name_filter {
+                    entry.full_name(locales).unwrap_or_default().to_lowercase() == filter_name
+                } else {
+                    false
+                }
+            }
         })
         .collect();
     entries.sort_by_key(|entry| entry.full_name(locales).unwrap_or_default());
@@ -153,6 +168,13 @@ fn list_programs(
             println!("Desktop entries with missing entry icon lookup:");
         }
         crate::cli::ListAction::Excluded => println!("Hidden/excluded desktop entries:"),
+        crate::cli::ListAction::Program => {
+            if let Some(name) = program_name {
+                println!("Desktop entries matching Name: {}", name);
+            } else {
+                println!("Desktop entries matching Name:");
+            }
+        }
     }
 
     if entries.is_empty() {
