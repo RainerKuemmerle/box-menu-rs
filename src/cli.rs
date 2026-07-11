@@ -7,21 +7,21 @@ pub struct CliOptions {
     #[arg(
         value_name = "NAME",
         help = "Desktop entry Name substring to inspect when using --list program.",
-        required_if_eq("list", "program"),
+        required_if_eq("list", "program")
     )]
     program_name: Option<String>,
 
     #[arg(
         long = "config-file",
         value_name = "PATH",
-        help = "Load configuration from a specific YAML file instead of the default XDG config",
+        help = "Load configuration from a specific YAML file instead of the default XDG config"
     )]
     config_file: Option<PathBuf>,
 
     #[arg(
         long = "list",
         value_name = "ACTION",
-        help = "List discovered desktop entries by action.",
+        help = "List discovered desktop entries by action."
     )]
     list: Option<ListAction>,
 }
@@ -52,4 +52,3 @@ impl CliOptions {
         self.list
     }
 }
-

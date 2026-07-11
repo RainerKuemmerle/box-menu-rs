@@ -142,8 +142,11 @@ options:
         fs::write(&config_path, yaml).expect("failed to write test config file");
         let cfg = load_config(Some(&config_path)).expect("failed to load config");
 
-        assert_eq!(cfg.options.visibility_filter, false);
-        assert_eq!(cfg.category_map["TestCategory"].output.as_deref(), Some("Testing"));
+        assert!(!cfg.options.visibility_filter);
+        assert_eq!(
+            cfg.category_map["TestCategory"].output.as_deref(),
+            Some("Testing")
+        );
 
         let output = cfg.output.expect("output section missing");
         assert_eq!(output["Testing"].icon.as_deref(), Some("test-icon"));

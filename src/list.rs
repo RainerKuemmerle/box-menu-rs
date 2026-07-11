@@ -26,7 +26,8 @@ pub fn list_programs(
             }
             crate::cli::ListAction::Program => {
                 if let Some(filter_name) = program_name_filter.as_deref() {
-                    entry.full_name(locales)
+                    entry
+                        .full_name(locales)
                         .unwrap_or_default()
                         .to_lowercase()
                         .contains(filter_name)
@@ -70,17 +71,29 @@ pub fn list_programs(
         println!("\nProgram: {}", label);
         println!("  Desktop file: {}", desktop_file_path);
         println!("  Exec: {}", exec);
-        println!("  Icon field: {}", if icon_field.is_empty() { "<none>" } else { &icon_field });
+        println!(
+            "  Icon field: {}",
+            if icon_field.is_empty() {
+                "<none>"
+            } else {
+                &icon_field
+            }
+        );
         match entry_icon_path {
             Some(path) => println!("  Resolved entry icon: {}", path.display()),
-            None if icon_field.is_empty() => println!("  Entry icon is not defined in the desktop file."),
+            None if icon_field.is_empty() => {
+                println!("  Entry icon is not defined in the desktop file.")
+            }
             None => println!("  Entry icon lookup failed for '{}'.", icon_field),
         }
         if let Some(reason) = visibility_reason {
             if config.options.visibility_filter {
                 println!("  Visibility: excluded ({})", reason);
             } else {
-                println!("  Visibility: would be excluded ({}) but filtering is disabled", reason);
+                println!(
+                    "  Visibility: would be excluded ({}) but filtering is disabled",
+                    reason
+                );
             }
         } else {
             println!("  Visibility: included");
@@ -94,9 +107,9 @@ pub fn list_programs(
         }
 
         for category in categories {
-            match config.category_map.get(&category[..]) {
+            match config.category_map.get(category) {
                 Some(mapped_category) => {
-                    let output_name = mapped_category.output.as_deref().unwrap_or(&category);
+                    let output_name = mapped_category.output.as_deref().unwrap_or(category);
                     let category_icon_name = config.icon_for_category(output_name);
                     let category_icon_path = lookup_icon(&category_icon_name);
 
@@ -113,7 +126,9 @@ pub fn list_programs(
         }
 
         if excluded_by_filter {
-            println!("  Note: this entry would be excluded from XML output by visibility filtering.");
+            println!(
+                "  Note: this entry would be excluded from XML output by visibility filtering."
+            );
         }
     }
 }
