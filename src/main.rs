@@ -9,12 +9,13 @@ mod menu;
 mod visibility;
 
 use crate::cli::{CliOptions, debug_program_icon_resolution};
-use crate::config::load_config;
+use crate::config::{load_config, Config};
 use crate::icon::lookup_icon;
 use crate::menu::Entry;
 use crate::visibility::{
     current_desktop_environment, parse_current_desktop, visibility_exclusion_reason,
 };
+use std::collections::HashSet;
 
 const OPENBOX_XMLNS: &str = "http://openbox.org/";
 const OPENBOX_XSI: &str = "http://www.w3.org/2001/XMLSchema-instance";
@@ -38,6 +39,23 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     let current_desktop = current_desktop_environment();
     let current_desktop_parsed = current_desktop.as_deref().map(parse_current_desktop);
     let all_entries: Vec<DesktopEntry> = desktop_entries(&locales).into_iter().collect();
+
+    if cli_options.program_name().is_some() {
+        debug_program_icon_resolution(
+            &all_entries,
+            &locales,
+            &cfg,
+            &cli_options,
+            current_desktop_parsed.as_ref(),
+        );
+        return Ok(());
+    }
+
+    if cli_options.list_programs() {
+        list_programs(&all_entries, &locales, &cfg, current_desktop_parsed.as_ref());
+        return Ok(());
+    }
+
     let mut excluded_entries = Vec::new();
     let entries: Vec<&DesktopEntry> = all_entries
         .iter()
@@ -58,17 +76,6 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             }
         })
         .collect();
-
-    if cli_options.program_name().is_some() {
-        debug_program_icon_resolution(
-            &all_entries,
-            &locales,
-            &cfg,
-            &cli_options,
-            current_desktop_parsed.as_ref(),
-        );
-        return Ok(());
-    }
 
     let mut root = cfg.empty_tree();
     for entry in entries {
@@ -111,4 +118,77 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     Ok(())
+}
+
+fn list_programs(
+    entries: &[DesktopEntry],
+    locales: &[String],
+    config: &Config,
+    current_desktop: Option<&HashSet<String>>,
+) {
+    let mut entries: Vec<_> = entries
+        .iter()
+        .filter(|entry| entry.categories().is_some())
+        .collect();
+    entries.sort_by_key(|entry| entry.full_name(locales).unwrap_or_default());
+
+    println!("Discovered desktop entries:");
+    for entry in entries {
+        let label = entry.full_name(locales).unwrap_or_default();
+        let desktop_file_path = entry.path.to_string_lossy();
+        let exec = entry.exec().unwrap_or_default();
+        let icon_field = entry.icon().unwrap_or_default();
+        let entry_icon_path = entry.icon().and_then(lookup_icon);
+        let visibility_reason = visibility_exclusion_reason(entry, current_desktop);
+        let excluded_by_filter = visibility_reason.is_some() && config.options.visibility_filter;
+
+        println!("\nProgram: {}", label);
+        println!("  Desktop file: {}", desktop_file_path);
+        println!("  Exec: {}", exec);
+        println!("  Icon field: {}", if icon_field.is_empty() { "<none>" } else { &icon_field });
+        match entry_icon_path {
+            Some(path) => println!("  Resolved entry icon: {}", path.display()),
+            None if icon_field.is_empty() => println!("  Entry icon is not defined in the desktop file."),
+            None => println!("  Entry icon lookup failed for '{}'.", icon_field),
+        }
+        if let Some(reason) = visibility_reason {
+            if config.options.visibility_filter {
+                println!("  Visibility: excluded ({})", reason);
+            } else {
+                println!("  Visibility: would be excluded ({}) but filtering is disabled", reason);
+            }
+        } else {
+            println!("  Visibility: included");
+        }
+
+        let categories = entry.categories().unwrap_or_default();
+        let categories: Vec<_> = categories.into_iter().filter(|c| !c.is_empty()).collect();
+        if categories.is_empty() {
+            println!("  Categories: <none>");
+            continue;
+        }
+
+        for category in categories {
+            match config.category_map.get(&category[..]) {
+                Some(mapped_category) => {
+                    let output_name = mapped_category.output.as_deref().unwrap_or(&category);
+                    let category_icon_name = config.icon_for_category(output_name);
+                    let category_icon_path = lookup_icon(&category_icon_name);
+
+                    println!("  Category: {}", category);
+                    println!("    Mapped output: {}", output_name);
+                    println!("    Category icon: {}", category_icon_name);
+                    match category_icon_path {
+                        Some(path) => println!("    Resolved category icon: {}", path.display()),
+                        None => println!("    Category icon lookup failed."),
+                    }
+                }
+                None => println!("  Category: {} (not mapped)", category),
+            }
+        }
+
+        if excluded_by_filter {
+            println!("  Note: this entry would be excluded from XML output by visibility filtering.");
+        }
+    }
 }

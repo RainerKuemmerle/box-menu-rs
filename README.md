@@ -96,6 +96,19 @@ box-menu-rs --debug-program "Firefox"
 
 The menu XML is not printed after the debug diagnostics, instead the program terminates.
 
+### Listing discovered programs
+
+Use `--list-programs` to inspect all discovered desktop entries and their
+mapped categories before generating XML. This is useful when verifying how the
+configured `category_map` will classify applications and whether visibility
+filtering will exclude any entries.
+
+Example:
+
+```sh
+box-menu-rs --list-programs
+```
+
 ### Configuration example
 
 The configuration file is stored in `$XDG_CONFIG_HOME/box-menu-rs/config.yml` and maps desktop file categories to menu output names. You can also use slash-separated paths to create nested submenus.
