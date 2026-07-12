@@ -1,4 +1,4 @@
-use crate::{config::Config, escape, icon::lookup_icon};
+use crate::{config::Config, escape, icon::resolve_icon};
 use std::{
     collections::{BTreeMap, BTreeSet},
     fmt,
@@ -60,7 +60,7 @@ impl MenuNode {
     pub fn print(&self, config: &Config, path: &str) {
         if !self.label.is_empty() {
             let category_icon_name = config.icon_for_category(path);
-            let icon_str = lookup_icon(&category_icon_name)
+            let icon_str = resolve_icon(&category_icon_name)
                 .map(|p| format!(" icon=\"{}\"", p.display()))
                 .unwrap_or_default();
             println!(
