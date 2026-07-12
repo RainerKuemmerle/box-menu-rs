@@ -5,12 +5,14 @@ use std::{collections::HashMap, path::PathBuf};
 #[derive(Serialize, Deserialize)]
 pub struct ConfigCategory {
     pub output: Option<String>,
+    pub priority: Option<u32>,
 }
 
 impl ConfigCategory {
     pub fn default(output: String) -> Self {
         Self {
             output: Some(output),
+            priority: None,
         }
     }
 }
@@ -21,9 +23,11 @@ pub struct OutputCategory {
 }
 
 #[derive(Serialize, Deserialize)]
+#[serde(default)]
 pub struct Options {
     pub visibility_filter: bool,
     pub icon_theme: Option<String>,
+    pub category_priority: bool,
 }
 
 impl Default for Options {
@@ -31,6 +35,7 @@ impl Default for Options {
         Self {
             visibility_filter: true,
             icon_theme: None,
+            category_priority: false,
         }
     }
 }
@@ -152,5 +157,50 @@ options:
         assert_eq!(output["Testing"].icon.as_deref(), Some("test-icon"));
 
         fs::remove_file(&config_path).expect("failed to remove test config file");
+    }
+
+    #[test]
+    fn config_category_priority_deserializes() {
+        let yaml = r#"
+category_map:
+  TestCategory:
+    output: Testing
+    priority: 42
+options:
+  visibility_filter: false
+  category_priority: true
+"#;
+
+        let temp_dir = std::env::temp_dir();
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("time went backwards")
+            .as_nanos();
+        let config_path = temp_dir.join(format!("box-menu-rs-test-config-{}.yml", timestamp));
+
+        fs::write(&config_path, yaml).expect("failed to write test config file");
+        let cfg = load_config(Some(&config_path)).expect("failed to load config");
+
+        assert!(cfg.options.category_priority);
+        assert_eq!(cfg.category_map["TestCategory"].priority, Some(42));
+        assert_eq!(
+            cfg.category_map["TestCategory"].output.as_deref(),
+            Some("Testing")
+        );
+
+        fs::remove_file(&config_path).expect("failed to remove test config file");
+    }
+
+    #[test]
+    fn category_priority_option_defaults_false() {
+        let yaml = r#"
+category_map:
+  TestCategory:
+    output: Testing
+"#;
+
+        let cfg: Config = serde_yaml::from_str(yaml).expect("failed to deserialize config");
+        assert!(!cfg.options.category_priority);
+        assert_eq!(cfg.category_map["TestCategory"].priority, None);
     }
 }

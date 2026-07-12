@@ -5,7 +5,7 @@ use std::{
     path::PathBuf,
 };
 
-#[derive(Eq, Hash, PartialEq, PartialOrd, Ord)]
+#[derive(Clone, Eq, Hash, PartialEq, PartialOrd, Ord)]
 pub struct Entry {
     pub label: String,
     pub exec: String,
