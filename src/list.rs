@@ -1,4 +1,8 @@
-use crate::{config::Config, icon::lookup_icon, visibility::visibility_exclusion_reason};
+use crate::{
+    config::Config,
+    icon::{lookup_icon, resolve_icon},
+    visibility::visibility_exclusion_reason,
+};
 use freedesktop_desktop_entry::DesktopEntry;
 use std::collections::HashSet;
 
@@ -145,7 +149,7 @@ pub fn list_programs(
             if let Some(mapped_category) = config.category_map.get(category) {
                 let output_name = mapped_category.output.as_deref().unwrap_or(category);
                 let category_icon_name = config.icon_for_category(output_name);
-                let category_icon_path = lookup_icon(&category_icon_name);
+                let category_icon_path = resolve_icon(&category_icon_name);
 
                 println!("  Category: {}", category);
                 println!("    Mapped output: {}", output_name);
