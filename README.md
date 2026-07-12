@@ -56,10 +56,16 @@ Optionally, `config.yml` can also include runtime options under `options`.
 options:
   icon_theme: "Papirus"
   visibility_filter: true
+  category_priority: true
 ```
 
 The `icon_theme` option forces the icon theme used for icon lookup instead of
 reading the default theme from the desktop environment.
+
+The `category_priority` option enables highest-priority-only assignment for
+entries that match multiple categories. When enabled, each desktop entry is
+placed in only one output category, selected by the `priority` value in its
+`category_map` entry.
 
 This is useful when the running desktop environment does not expose the icon
 theme via `gsettings`, or when you want to use a different icon theme just for
@@ -151,10 +157,13 @@ Below is a complete `config.yml` with category mappings and output icons. Copy t
 category_map:
   AudioVideo:
     output: "Applications/Multimedia"
+    priority: 30
   Audio:
     output: "Applications/Multimedia"
+    priority: 20
   Video:
     output: "Applications/Multimedia"
+    priority: 10
   Development:
     output: "Applications/Development"
   Education:

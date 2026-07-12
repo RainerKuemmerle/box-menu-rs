@@ -28,6 +28,14 @@ fn main() {
     }
 }
 
+fn make_entry(entry: &DesktopEntry, locales: &[String]) -> Entry {
+    Entry {
+        label: escape::escape(entry.full_name(locales).unwrap_or_default()).to_string(),
+        exec: entry.exec().unwrap_or_default().to_string(),
+        icon: entry.icon().and_then(lookup_icon),
+    }
+}
+
 fn run() -> Result<(), Box<dyn std::error::Error>> {
     let cli_options = CliOptions::parse();
     let cfg = load_config(cli_options.config_file())?;
@@ -72,16 +80,14 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         .iter()
         .filter(|x| x.categories().is_some())
         .filter(|x| {
-            if cfg.options.visibility_filter {
-                if let Some(reason) =
-                    visibility_exclusion_reason(x, current_desktop_parsed.as_ref())
-                {
-                    let label = x.full_name(&locales).unwrap_or_default().to_string();
-                    excluded_entries.push((label, reason));
-                    false
-                } else {
-                    true
-                }
+            if !cfg.options.visibility_filter {
+                return true;
+            }
+
+            if let Some(reason) = visibility_exclusion_reason(x, current_desktop_parsed.as_ref()) {
+                let label = x.full_name(&locales).unwrap_or_default().to_string();
+                excluded_entries.push((label, reason));
+                false
             } else {
                 true
             }
@@ -90,24 +96,47 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut root = cfg.empty_tree();
     for entry in entries {
-        for c in entry
+        let mapped_categories: Vec<String> = entry
             .categories()
             .unwrap()
             .into_iter()
             .filter(|k| !k.is_empty())
-            .filter(|&k| cfg.category_map.contains_key(k))
-        {
-            let mapped_category = cfg.category_map.get(c).unwrap();
-            let output_name = mapped_category.output.as_ref().map_or(c, |v| v);
-            root.insert(
-                output_name,
-                Entry {
-                    label: escape::escape(entry.full_name(&locales).unwrap_or_default())
-                        .to_string(),
-                    exec: entry.exec().unwrap_or_default().to_string(),
-                    icon: entry.icon().and_then(lookup_icon),
-                },
-            );
+            .filter(|k| cfg.category_map.contains_key(&k[..]))
+            .map(|k| k.to_string())
+            .collect();
+
+        if mapped_categories.is_empty() {
+            continue;
+        }
+
+        let menu_entry = make_entry(entry, &locales);
+
+        if cfg.options.category_priority {
+            let entries_category = mapped_categories
+                .into_iter()
+                .map(|c| {
+                    let c_str: &str = c.as_ref();
+                    let mapped_category = cfg.category_map.get(c_str).unwrap();
+                    let output_name = mapped_category.output.as_deref().unwrap_or(c_str);
+                    let priority = mapped_category.priority.unwrap_or(0);
+                    (priority, output_name.to_string())
+                })
+                .max_by(|a, b| a.0.cmp(&b.0).then(a.1.cmp(&b.1)))
+                .map(|(_, output_name)| output_name)
+                .unwrap();
+
+            root.insert(&entries_category, menu_entry);
+        } else {
+            // Insert into every matching mapped category by default.
+            for c in mapped_categories {
+                let c_str: &str = c.as_ref();
+                let mapped_category = cfg.category_map.get(c_str).unwrap();
+                let output_name = mapped_category
+                    .output
+                    .clone()
+                    .unwrap_or_else(|| c.to_string());
+                root.insert(&output_name, menu_entry.clone());
+            }
         }
     }
 

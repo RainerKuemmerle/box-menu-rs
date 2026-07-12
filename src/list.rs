@@ -106,22 +106,61 @@ pub fn list_programs(
             continue;
         }
 
-        for category in categories {
-            match config.category_map.get(category) {
-                Some(mapped_category) => {
-                    let output_name = mapped_category.output.as_deref().unwrap_or(category);
-                    let category_icon_name = config.icon_for_category(output_name);
-                    let category_icon_path = lookup_icon(&category_icon_name);
+        let mut mapped_categories = Vec::new();
+        for category in &categories {
+            if let Some(mapped_category) = config.category_map.get(*category) {
+                mapped_categories.push((category, mapped_category));
+            }
+        }
 
-                    println!("  Category: {}", category);
-                    println!("    Mapped output: {}", output_name);
-                    println!("    Category icon: {}", category_icon_name);
-                    match category_icon_path {
-                        Some(path) => println!("    Resolved category icon: {}", path.display()),
-                        None => println!("    Category icon lookup failed."),
-                    }
+        if config.options.category_priority && !mapped_categories.is_empty() {
+            let chosen = mapped_categories.iter().max_by(
+                |(category_a, mapped_a), (category_b, mapped_b)| {
+                    let priority_a = mapped_a.priority.unwrap_or(0);
+                    let priority_b = mapped_b.priority.unwrap_or(0);
+                    priority_a.cmp(&priority_b).then(
+                        mapped_a
+                            .output
+                            .as_deref()
+                            .unwrap_or(category_a.as_ref())
+                            .cmp(mapped_b.output.as_deref().unwrap_or(category_b.as_ref())),
+                    )
+                },
+            );
+
+            if let Some((category, mapped_category)) = chosen {
+                let output_name = mapped_category
+                    .output
+                    .as_deref()
+                    .unwrap_or(category.as_ref());
+                let priority = mapped_category.priority.unwrap_or(0);
+                println!(
+                    "  Category priority enabled: selected '{}' (priority {})",
+                    output_name, priority
+                );
+            }
+        }
+
+        for category in categories {
+            if let Some(mapped_category) = config.category_map.get(category) {
+                let output_name = mapped_category.output.as_deref().unwrap_or(category);
+                let category_icon_name = config.icon_for_category(output_name);
+                let category_icon_path = lookup_icon(&category_icon_name);
+
+                println!("  Category: {}", category);
+                println!("    Mapped output: {}", output_name);
+                if let Some(priority) = mapped_category.priority {
+                    println!("    Priority: {}", priority);
+                } else {
+                    println!("    Priority: <default>");
                 }
-                None => println!("  Category: {} (not mapped)", category),
+                println!("    Category icon: {}", category_icon_name);
+                match category_icon_path {
+                    Some(path) => println!("    Resolved category icon: {}", path.display()),
+                    None => println!("    Category icon lookup failed."),
+                }
+            } else {
+                println!("  Category: {} (not mapped)", category);
             }
         }
 
