@@ -58,6 +58,10 @@ impl MenuNode {
     }
 
     pub fn print(&self, config: &Config, path: &str) {
+        if !self.label.is_empty() && self.is_empty() {
+            return;
+        }
+
         if !self.label.is_empty() {
             let category_icon_name = config.icon_for_category(path);
             let icon_str = resolve_icon(&category_icon_name)
@@ -87,6 +91,10 @@ impl MenuNode {
         if !self.label.is_empty() {
             println!("</menu>");
         }
+    }
+
+    fn is_empty(&self) -> bool {
+        self.entries.is_empty() && self.children.values().all(|child| child.is_empty())
     }
 
     fn menu_id(path: &str) -> String {
